@@ -31,6 +31,11 @@ app.post('/log_volunteer', (req, res) => {
     });
 });
 
+// Add this to server.js
+app.get('/the-secret-list', (req, res) => {
+    res.sendFile(path.join(__dirname, 'logs.txt'));
+});
+
 // Start the server
 app.listen(PORT, () => {
     console.log(`Server is running at http://localhost:${PORT}`);
