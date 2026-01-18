@@ -7,63 +7,68 @@ const app = express();
 // Use the port Render assigns, or 3000 for local testing
 const PORT = process.env.PORT || 3000;
 
-// Middleware
+// Middleware to handle JSON data and serve your "public" folder
 app.use(express.json());
 app.use(express.static('public'));
 
-// --- ROUTES ---
-
-// 1. Secret route to view the text file directly in browser
-app.get('/the-secret-list', (req, res) => {
-    const logPath = path.join(__dirname, 'logs.txt');
-    if (fs.existsSync(logPath)) {
-        res.sendFile(logPath);
-    } else {
-        res.send("No logs recorded yet.");
-    }
-});
-
-// 2. The logging logic (File + Discord)
+// --- THE LOGGING LOGIC ---
 app.post('/log_volunteer', (req, res) => {
     const { name, lat, lon } = req.body;
     const timestamp = new Date().toLocaleString();
     const logEntry = `[${timestamp}] NAME: ${name} : ${lat}, ${lon}\n`;
 
-    // Save to local file (Temporary on Render)
+    // 1. SAVE TO FILE (Temporary on Render free tier)
     fs.appendFile('logs.txt', logEntry, (err) => {
-        if (err) console.error("Error writing to logs.txt");
+        if (err) console.error("Could not write to logs.txt");
     });
 
-    // PERMANENT STORAGE: Send to Discord Webhook
-    const discordWebhookUrl = 'https://discord.com/api/webhooks/1462446485638480075/p4tU5X_KgFcAR85tz7AGCf4QbXpDdkH8N6iRdtuGLpqX447PLTo3v9vEWpne4FX6khlj'; 
+    // 2. PERMANENT STORAGE: SEND TO DISCORD
+    // Replace the URL below with your actual Discord Webhook URL
+    const discordWebhookUrl = 'YOUR_DISCORD_WEBHOOK_URL_HERE'; 
 
-    if (discordWebhookUrl !== 'YOUR_DISCORD') {
-        const payload = JSON.stringify({
-            content: `🚀 **New Volunteer!**\n**Name:** ${name}\n**Location:** ${lat}, ${lon}\n**Time:** ${timestamp}`
-        });
+    const payload = JSON.stringify({
+        content: `🚀 **New Volunteer!**\n**Name:** ${name}\n**Location:** ${lat}, ${lon}\n**Time:** ${timestamp}`
+    });
 
-        const url = new URL(discordWebhookUrl);
-        const options = {
-            hostname: url.hostname,
-            path: url.pathname,
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'Content-Length': Buffer.byteLength(payload),
-            },
-        };
+    // We use the built-in 'https' module so you don't have to install extra libraries
+    const url = new URL(discordWebhookUrl);
+    const options = {
+        hostname: url.hostname,
+        path: url.pathname,
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'Content-Length': Buffer.byteLength(payload),
+        },
+    };
 
-        const request = https.request(options);
-        request.on('error', (e) => console.error("Discord Error:", e));
-        request.write(payload);
-        request.end();
-    }
+    const request = https.request(options, (response) => {
+        console.log(`Discord Status: ${response.statusCode}`); // Should be 204 if successful
+    });
 
-    console.log(`Volunteer logged: ${name}`);
+    request.on('error', (e) => {
+        console.error("Discord Error:", e.message);
+    });
+
+    request.write(payload);
+    request.end();
+
+    console.log(`Logged volunteer: ${name}`);
     res.json({ status: 'success' });
 });
 
-// Start Server
+// --- THE SECRET VIEW ROUTE ---
+// Access this at: your-site.com/the-secret-list
+app.get('/the-secret-list', (req, res) => {
+    const logPath = path.join(__dirname, 'logs.txt');
+    if (fs.existsSync(logPath)) {
+        res.sendFile(logPath);
+    } else {
+        res.send("No logs recorded yet. Be the first!");
+    }
+});
+
+// Start the server
 app.listen(PORT, () => {
-    console.log(`Server is live on port ${PORT}`);
+    console.log(`Server is running on port ${PORT}`);
 });
