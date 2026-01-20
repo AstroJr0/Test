@@ -23,48 +23,57 @@ app.post('/log_volunteer', (req, res) => {
     });
 
     // 2. PERMANENT STORAGE: SEND TO DISCORD
-    // Replace the URL below with your actual Discord Webhook URL
-    const discordWebhookUrl = 'YOUR_DISCORD_WEBHOOK_URL_HERE'; 
+    // We pulled the URL from Render's Environment Variables
+    const discordWebhookUrl = process.env.WEBHOOK; 
+
+    // Safety check: If the Webhook URL is missing, don't crash the server
+    if (!discordWebhookUrl) {
+        console.error("ERROR: WEBHOOK environment variable is not set on Render!");
+        return res.status(500).json({ status: 'error', message: 'Config missing' });
+    }
 
     const payload = JSON.stringify({
-        content: `🚀 **New Volunteer!**\n**Name:** ${name}\n**Location:** ${lat}, ${lon}\n**Time:** ${timestamp}`
+        content: `🚀 **New Volunteer Alert!**\n**Name:** ${name}\n**Location:** ${lat}, ${lon}\n**Time:** ${timestamp}`
     });
 
-    // We use the built-in 'https' module so you don't have to install extra libraries
-    const url = new URL(discordWebhookUrl);
-    const options = {
-        hostname: url.hostname,
-        path: url.pathname,
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-            'Content-Length': Buffer.byteLength(payload),
-        },
-    };
+    try {
+        const url = new URL(discordWebhookUrl);
+        const options = {
+            hostname: url.hostname,
+            path: url.pathname,
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Content-Length': Buffer.byteLength(payload),
+            },
+        };
 
-    const request = https.request(options, (response) => {
-        console.log(`Discord Status: ${response.statusCode}`); // Should be 204 if successful
-    });
+        const request = https.request(options, (response) => {
+            console.log(`Discord Response: ${response.statusCode}`); 
+        });
 
-    request.on('error', (e) => {
-        console.error("Discord Error:", e.message);
-    });
+        request.on('error', (e) => {
+            console.error("Discord Request Error:", e.message);
+        });
 
-    request.write(payload);
-    request.end();
+        request.write(payload);
+        request.end();
 
-    console.log(`Logged volunteer: ${name}`);
+    } catch (err) {
+        console.error("Invalid Webhook URL format:", err.message);
+    }
+
+    console.log(`Volunteer logged locally: ${name}`);
     res.json({ status: 'success' });
 });
 
 // --- THE SECRET VIEW ROUTE ---
-// Access this at: your-site.com/the-secret-list
 app.get('/the-secret-list', (req, res) => {
     const logPath = path.join(__dirname, 'logs.txt');
     if (fs.existsSync(logPath)) {
         res.sendFile(logPath);
     } else {
-        res.send("No logs recorded yet. Be the first!");
+        res.send("No logs recorded yet.");
     }
 });
 
